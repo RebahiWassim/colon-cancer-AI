@@ -1,0 +1,10 @@
+version: '3.8'
+services:
+  api:
+    build: .
+    ports:
+      - "8005:8005"
+    volumes:
+      - ./models:/app/models
+    environment:
+      - MODEL_PATH=/app/models/best_vit_lc25000.pth

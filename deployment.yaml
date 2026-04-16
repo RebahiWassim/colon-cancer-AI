@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: colon-cancer-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: colon-cancer-api
+  template:
+    metadata:
+      labels:
+        app: colon-cancer-api
+    spec:
+      containers:
+      - name: colon-cancer-api
+        image: colon-cancer-api:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+        env:
+        - name: MODEL_PATH
+          value: /app/models/best_vit_lc25000.pth
