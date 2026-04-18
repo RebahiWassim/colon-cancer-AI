@@ -5,6 +5,8 @@ MODEL_PATH = os.getenv("MODEL_PATH", "models/best_vit_lc25000.pth")
 IMAGE_SIZE = (224, 224)
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
+extra = "ignore"
+
 IMAGE_SIZE = (224, 224)
 CLASS_NAMES = [
     'Colon Adenocarcinoma',
