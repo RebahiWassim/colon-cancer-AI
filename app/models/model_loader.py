@@ -10,10 +10,8 @@ model = None
 def load_model():
     global model
     if model is None:
-        # Créer le modèle ViT avec timm
         model = timm.create_model('vit_base_patch16_224', pretrained=False, num_classes=2)
         
-        # Remplacer la tête par une tête à 3 couches (car le modèle sauvegardé a head.0, head.2, head.5)
         hidden_dim = 768
 
         model.head = nn.Sequential(
@@ -28,14 +26,11 @@ def load_model():
         if not os.path.exists(MODEL_PATH):
             raise FileNotFoundError(f"Model not found at {MODEL_PATH}")
         
-        # Charger les poids
         state_dict = torch.load(MODEL_PATH, map_location=DEVICE)
         
-        # Enlever 'module.' si présent
         if list(state_dict.keys())[0].startswith('module.'):
             state_dict = {k.replace('module.', ''): v for k, v in state_dict.items()}
         
-        # Charger avec strict=False pour ignorer les différences
         model.load_state_dict(state_dict, strict=True)
         model = model.to(DEVICE)
         model.eval()
@@ -49,4 +44,5 @@ def predict(model, image_tensor):
         outputs = model(image_tensor)
         probabilities = torch.nn.functional.softmax(outputs, dim=1)
         confidence, predicted_class = torch.max(probabilities, 1)
-        return predicted_class.item(), confidence.item()
+        all_probs = probabilities[0].cpu().tolist()
+        return predicted_class.item(), confidence.item(), all_probs
