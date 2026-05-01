@@ -1,19 +1,38 @@
 import torch
 import os
 import timm
+import gc
 from torch import nn
 from app.core.config import MODEL_PATH, DEVICE
 
-_model = None  # lazy — don't load at import time
+_model = None
+
+def _log_mem(stage: str):
+    try:
+        import psutil
+        proc = psutil.Process(os.getpid())
+        mb = proc.memory_info().rss / 1024 / 1024
+        print(f"[MEM] {stage}: {mb:.1f} MB RSS")
+    except ImportError:
+        pass  # psutil optional
 
 def load_model():
     global _model
     if _model is not None:
         return _model
 
-    # EfficientNet-B0: 5.3M params, ~20MB weights vs ViT-Base's 86M / ~330MB
+    _log_mem("before model load")
+
+    if not os.path.exists(MODEL_PATH):
+        # Log clearly instead of crashing — lets /health still respond
+        print(f"ERROR: Model file not found at {MODEL_PATH}")
+        print(f"Files in model dir: {os.listdir(os.path.dirname(MODEL_PATH))}")
+        raise FileNotFoundError(f"Model not found at {MODEL_PATH}")
+
+    print(f"Loading EfficientNet-B0 from {MODEL_PATH} ...")
+
     base = timm.create_model('efficientnet_b0', pretrained=False, num_classes=0)
-    in_features = base.num_features  # 1280 for b0
+    in_features = base.num_features  # 1280
 
     model = nn.Sequential(
         base,
@@ -25,29 +44,29 @@ def load_model():
         nn.Linear(256, 5),
     )
 
-    if not os.path.exists(MODEL_PATH):
-        raise FileNotFoundError(f"Model not found at {MODEL_PATH}")
-
     state_dict = torch.load(MODEL_PATH, map_location="cpu", weights_only=True)
+
+    # Strip DataParallel prefix if trained with multi-GPU
     if list(state_dict.keys())[0].startswith('module.'):
         state_dict = {k.replace('module.', ''): v for k, v in state_dict.items()}
 
     model.load_state_dict(state_dict, strict=True)
     model.eval()
+    model = model.half()  # FP16 — halves RAM
 
-    # FP16 on CPU cuts memory by half with minimal accuracy loss
-    model = model.half()
+    # Free anything torch cached during load
+    gc.collect()
+    torch.set_num_threads(1)  # Render free tier = 1 vCPU
 
     _model = model
-    print(f"✅ EfficientNet-B0 loaded on CPU (FP16)")
+    _log_mem("after model load")
+    print("Model ready.")
     return _model
 
 
 def predict(model, image_tensor):
     with torch.no_grad():
-        # Cast input to FP16 to match model
-        outputs = model(image_tensor.half())
-        probabilities = torch.nn.functional.softmax(outputs.float(), dim=1)
-        confidence, predicted_class = torch.max(probabilities, 1)
-        all_probs = probabilities[0].cpu().tolist()
-        return predicted_class.item(), confidence.item(), all_probs
+        out = model(image_tensor.half())
+        probs = torch.nn.functional.softmax(out.float(), dim=1)
+        conf, cls = torch.max(probs, 1)
+        return cls.item(), conf.item(), probs[0].cpu().tolist()
