@@ -1,9 +1,11 @@
+# CPU-only torch — saves ~200MB vs the full CUDA build
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.6.0+cpu
+torchvision==0.21.0+cpu
+
+timm==1.0.3
 fastapi==0.115.12
 uvicorn==0.34.0
-torch==2.6.0
-torchvision==0.21.0
 pillow==11.1.0
-numpy==2.2.3
 python-multipart==0.0.20
-opencv-python==4.11.0.86
-timm==1.0.3
+numpy==2.2.3
